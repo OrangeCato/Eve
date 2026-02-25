@@ -30,7 +30,7 @@ function useSpeechIn() {
 
       r.onresult = (e) => resolve(e.results?.[0]?.[0]?.transcript || "");
       r.onerror = (e) => reject(new Error(e.error || "Speech recognition error"));
-      r.onend = () => {};
+      r.onend = () => { };
       r.start();
     });
 
@@ -253,7 +253,7 @@ export default function App() {
     const lo = daily?.temperature_2m_min?.[0];
     const rain = daily?.precipitation_sum?.[0];
 
-    const reminders = ["Portfolio: verify links + live demos", "Recruiter mode: keep services pinned", "Next: connect vision + mood model"];
+    const reminders = reminders;
 
     return (
       `Briefing for ${formatDay()}. ` +
@@ -607,7 +607,7 @@ export default function App() {
         if (!v) return;
         v.srcObject = stream;
         await new Promise((res) => (v.onloadedmetadata = res));
-        await v.play().catch(() => {});
+        await v.play().catch(() => { });
         setReady(true);
       } catch (e) {
         console.error(e);
@@ -811,7 +811,9 @@ export default function App() {
     const current = data?.current;
     const daily = data?.daily;
 
-    const reminders = ["Portfolio: verify links + live demos", "Recruiter mode: keep services pinned", "Next: connect DeepSeek vision + mood model"];
+    const reminders = ["Deploy E.V.E.",
+      "Update Render settings",
+      "Evaluate new features with alternative agents"];
 
     return (
       <div style={{ display: "grid", gap: 12 }}>
