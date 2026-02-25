@@ -240,6 +240,12 @@ export default function App() {
     return null;
   }
 
+  const REMINDERS = [
+    "Deploy E.V.E.",
+    "Update Render settings",
+    "Evaluate new features with alternative agents",
+  ];
+
   function todayBriefingText() {
     const data = weather.data;
     const current = data?.current;
@@ -253,13 +259,11 @@ export default function App() {
     const lo = daily?.temperature_2m_min?.[0];
     const rain = daily?.precipitation_sum?.[0];
 
-    const reminders = reminders;
-
     return (
       `Briefing for ${formatDay()}. ` +
       `It's ${num(temp, 1)} degrees, feels like ${num(feels, 1)}. Wind ${num(wind, 0)} kilometers per hour. ` +
       `Forecast: high ${num(hi, 1)}, low ${num(lo, 1)}, rain ${num(rain, 1)} millimeters. ` +
-      `Reminders: ${reminders.join(". ")}.`
+      `Reminders: ${REMINDERS.join(". ")}.`
     );
   }
 
@@ -811,10 +815,6 @@ export default function App() {
     const current = data?.current;
     const daily = data?.daily;
 
-    const reminders = ["Deploy E.V.E.",
-      "Update Render settings",
-      "Evaluate new features with alternative agents"];
-
     return (
       <div style={{ display: "grid", gap: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
@@ -877,7 +877,7 @@ export default function App() {
         <div style={panelCardStyle}>
           <div style={{ fontWeight: 800, opacity: 0.9 }}>Reminders</div>
           <ul style={{ margin: "8px 0 0 18px", opacity: 0.82, lineHeight: 1.4 }}>
-            {reminders.map((r) => (
+            {REMINDERS.map((r) => (
               <li key={r}>{r}</li>
             ))}
           </ul>
