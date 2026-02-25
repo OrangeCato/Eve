@@ -3,8 +3,10 @@ node_modules/
 dist/
 .env
 .env.*
+*.local
 frontend/node_modules/
 frontend/dist/
+build/
 
 # Python
 __pycache__/
@@ -13,6 +15,6 @@ __pycache__/
 *.pyd
 .venv/
 venv/
-
+*.log
 # macOS
 .DS_Store

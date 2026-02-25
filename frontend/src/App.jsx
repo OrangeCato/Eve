@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import "@tensorflow/tfjs";
+import TopNotice from "./components/TopNotice";
 
 function useVoice() {
   const canSpeak = "speechSynthesis" in window;
@@ -109,8 +110,10 @@ async function getGeoPosition({ timeoutMs = 4500 } = {}) {
     );
   });
 }
-async function geocodeName() {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Local";
+async function geocodeName(lat, lon) {
+  // Lightweight: we just label it and keep timezone from browser
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "auto";
+  if (lat != null && lon != null) return { name: "Local area", timezone: tz };
   return { name: "Local area", timezone: tz };
 }
 async function fetchWeather(lat, lon, timezone) {
@@ -136,9 +139,15 @@ export default function App() {
   const [camError, setCamError] = useState("");
   const [ready, setReady] = useState(false);
 
+  // notice bar (same pattern as EasyStonks)
+  const [noticeVisible, setNoticeVisible] = useState(false);
+
   // gesture layer
   const [online, setOnline] = useState(false);
   const onlineRef = useRef(false);
+  useEffect(() => {
+    onlineRef.current = online;
+  }, [online]);
 
   const [cursor, setCursor] = useState({ x: 0.5, y: 0.5 });
   const [pinchP, setPinchP] = useState(0);
@@ -244,11 +253,7 @@ export default function App() {
     const lo = daily?.temperature_2m_min?.[0];
     const rain = daily?.precipitation_sum?.[0];
 
-    const reminders = [
-      "Deploy EVE",
-      "Update render services",
-      "Evaluate new features with alternative agent",
-    ];
+    const reminders = ["Portfolio: verify links + live demos", "Recruiter mode: keep services pinned", "Next: connect vision + mood model"];
 
     return (
       `Briefing for ${formatDay()}. ` +
@@ -318,7 +323,7 @@ export default function App() {
     setMood({ status: "ready", label: pick.label, confidence: conf });
   }
 
-  // ✅ REAL chat call → your backend POST /api/chat
+  // ✅ REAL chat call → backend POST /api/chat
   async function askEve(text) {
     const q = (text || "").trim();
     if (!q) return;
@@ -331,10 +336,7 @@ export default function App() {
       const r = await fetch(`${API_BASE}/api/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: q,
-          history: nextHistory,
-        }),
+        body: JSON.stringify({ question: q, history: nextHistory }),
       });
 
       if (!r.ok) {
@@ -424,14 +426,14 @@ export default function App() {
     speak("Standing by.");
   }
 
-  // unified action handler (menu + modal buttons)
+  // unified action handler (menu + panel buttons)
   async function onAction(id) {
     const now = Date.now();
     if (now - lastClickAtRef.current < CLICK_COOLDOWN_MS) return;
     lastClickAtRef.current = now;
 
-    // global controls
     if (id === "close") return closePanel();
+
     if (id === "pin") {
       setPanelPinned((p) => {
         const next = !p;
@@ -441,18 +443,11 @@ export default function App() {
       return;
     }
 
-    // panel controls
     if (activePanel === "today") {
-      if (id === "today_read") {
-        speak(todayBriefingText());
-        return;
-      }
+      if (id === "today_read") return speak(todayBriefingText());
     }
     if (activePanel === "health") {
-      if (id === "health_read") {
-        speak(healthBriefingText());
-        return;
-      }
+      if (id === "health_read") return speak(healthBriefingText());
     }
     if (activePanel === "scan") {
       if (id === "scan_rescan") {
@@ -460,10 +455,7 @@ export default function App() {
         await runScanOnce();
         return;
       }
-      if (id === "scan_read") {
-        speak(scanBriefingText(scan.items));
-        return;
-      }
+      if (id === "scan_read") return speak(scanBriefingText(scan.items));
     }
     if (activePanel === "mood") {
       if (id === "mood_rescan") {
@@ -471,10 +463,7 @@ export default function App() {
         runMoodOnce();
         return;
       }
-      if (id === "mood_read") {
-        speak(moodBriefingText(mood));
-        return;
-      }
+      if (id === "mood_read") return speak(moodBriefingText(mood));
     }
     if (activePanel === "ask") {
       if (id === "ask_send") {
@@ -499,7 +488,6 @@ export default function App() {
       }
     }
 
-    // menu items
     const menu = buttons.find((b) => b.id === id);
     if (menu) {
       addLog(`OPEN → ${menu.title}`);
@@ -693,14 +681,12 @@ export default function App() {
             setPinchP(clamp01(pStrength));
 
             if (palmOn && !onlineRef.current) {
-              onlineRef.current = true;
               setOnline(true);
               setToast("EVE ONLINE");
               addLog("EVE ONLINE");
             }
 
             if (!palmOn && onlineRef.current) {
-              onlineRef.current = false;
               draggingRef.current = false;
               lastHoverDuringDragRef.current = null;
               setOnline(false);
@@ -790,7 +776,7 @@ export default function App() {
     return () => {
       stop = true;
     };
-  }, [ready, activePanel, panelPinned, rectsEpoch]); // rectsEpoch makes hover targets refresh safely
+  }, [ready, activePanel, panelPinned, rectsEpoch]);
 
   useEffect(() => {
     const onResize = () => clearRects();
@@ -798,10 +784,7 @@ export default function App() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const cursorPx = useMemo(
-    () => ({ x: cursor.x * window.innerWidth, y: cursor.y * window.innerHeight }),
-    [cursor]
-  );
+  const cursorPx = useMemo(() => ({ x: cursor.x * window.innerWidth, y: cursor.y * window.innerHeight }), [cursor]);
 
   const panelCardStyle = {
     borderRadius: 16,
@@ -828,20 +811,13 @@ export default function App() {
     const current = data?.current;
     const daily = data?.daily;
 
-    const reminders = [
-      "Portfolio: verify links + live demos",
-      "Recruiter mode: keep services pinned",
-      "Next: connect DeepSeek vision + mood model",
-    ];
+    const reminders = ["Portfolio: verify links + live demos", "Recruiter mode: keep services pinned", "Next: connect DeepSeek vision + mood model"];
 
     return (
       <div style={{ display: "grid", gap: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
           <div style={{ fontWeight: 900, letterSpacing: "0.08em" }}>TODAY'S INFO</div>
           <div style={{ opacity: 0.75, fontSize: 12 }}>{formatDay()}</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         </div>
 
         <div style={panelCardStyle}>
@@ -904,6 +880,12 @@ export default function App() {
             ))}
           </ul>
         </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button ref={(el) => registerRect("today_read", el)} onClick={() => onAction("today_read")} style={smallBtn}>
+            🔊 Read out loud
+          </button>
+        </div>
       </div>
     );
   }
@@ -917,9 +899,6 @@ export default function App() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
           <div style={{ fontWeight: 900, letterSpacing: "0.08em" }}>HEALTH SNAPSHOT</div>
           <div style={{ opacity: 0.75, fontSize: 12 }}>Demo mode</div>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         </div>
 
         <div style={panelCardStyle}>
@@ -953,6 +932,12 @@ export default function App() {
             </div>
           </div>
         </div>
+
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button ref={(el) => registerRect("health_read", el)} onClick={() => onAction("health_read")} style={smallBtn}>
+            🔊 Read out loud
+          </button>
+        </div>
       </div>
     );
   }
@@ -966,7 +951,12 @@ export default function App() {
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button ref={(el) => registerRect("scan_rescan", el)} onClick={() => runScanOnce()} style={smallBtn}>↻ Rescan</button>
+          <button ref={(el) => registerRect("scan_rescan", el)} onClick={() => onAction("scan_rescan")} style={smallBtn}>
+            ↻ Rescan
+          </button>
+          <button ref={(el) => registerRect("scan_read", el)} onClick={() => onAction("scan_read")} style={smallBtn}>
+            🔊 Read results
+          </button>
         </div>
 
         <div style={panelCardStyle}>
@@ -1000,7 +990,12 @@ export default function App() {
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button ref={(el) => registerRect("mood_rescan", el)} onClick={() => runMoodOnce()} style={smallBtn}>↻ Rescan</button>
+          <button ref={(el) => registerRect("mood_rescan", el)} onClick={() => onAction("mood_rescan")} style={smallBtn}>
+            ↻ Rescan
+          </button>
+          <button ref={(el) => registerRect("mood_read", el)} onClick={() => onAction("mood_read")} style={smallBtn}>
+            🔊 Read results
+          </button>
         </div>
 
         <div style={panelCardStyle}>
@@ -1034,30 +1029,27 @@ export default function App() {
               color: "rgba(255,255,255,0.92)",
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const t = askInput;
-                setAskInput("");
-                askEve(t);
-              }
+              if (e.key === "Enter") onAction("ask_send");
             }}
           />
-          <button ref={(el) => registerRect("ask_send", el)} onClick={() => { const t = askInput; setAskInput(""); askEve(t); }} disabled={askBusy} style={smallBtn}>
+          <button ref={(el) => registerRect("ask_send", el)} onClick={() => onAction("ask_send")} disabled={askBusy} style={smallBtn}>
             {askBusy ? "…" : "Send"}
           </button>
-          <button ref={(el) => registerRect("ask_mic", el)} onClick={async () => {
-            try {
-              const t = await listenOnce();
-              if (t) await askEve(t);
-            } catch {
-              speak("Voice input is not supported here. Please type your question.");
-            }
-          }} style={smallBtn} disabled={!canListen || askBusy} title="Voice question">
+          <button
+            ref={(el) => registerRect("ask_mic", el)}
+            onClick={() => onAction("ask_mic")}
+            style={smallBtn}
+            disabled={!canListen || askBusy}
+            title="Voice question"
+          >
             🎤
           </button>
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button ref={(el) => registerRect("ask_clear", el)} onClick={() => setHistory([])} style={smallBtn}>Clear Chat</button>
+          <button ref={(el) => registerRect("ask_clear", el)} onClick={() => onAction("ask_clear")} style={smallBtn}>
+            Clear Chat
+          </button>
         </div>
 
         <div style={{ ...panelCardStyle, maxHeight: 260, overflow: "auto" }}>
@@ -1073,9 +1065,7 @@ export default function App() {
           )}
         </div>
 
-        <div style={{ fontSize: 12, opacity: 0.65 }}>
-          Backend: {API_BASE}
-        </div>
+        <div style={{ fontSize: 12, opacity: 0.65 }}>Backend: {API_BASE}</div>
       </div>
     );
   }
@@ -1121,7 +1111,15 @@ export default function App() {
     },
     video: { width: "100%", display: "block" },
     overlay: { position: "absolute", inset: 0, width: "100%", height: "100%" },
-    idleCanvas: { position: "absolute", inset: 0, width: "100%", height: "100%", opacity: online ? 0.0 : 1.0, transition: "opacity 350ms ease", pointerEvents: "none" },
+    idleCanvas: {
+      position: "absolute",
+      inset: 0,
+      width: "100%",
+      height: "100%",
+      opacity: online ? 0.0 : 1.0,
+      transition: "opacity 350ms ease",
+      pointerEvents: "none",
+    },
     footer: { marginTop: 10, fontSize: 12, opacity: 0.68, lineHeight: 1.35 },
 
     panelHeaderRow: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 },
@@ -1195,6 +1193,9 @@ export default function App() {
 
   return (
     <div style={styles.page}>
+      <TopNotice onVisibilityChange={setNoticeVisible} />
+      {noticeVisible && <div style={{ height: 48 }} />}
+
       <div style={styles.titleRow}>
         <h1 style={styles.title}>EVE</h1>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -1217,8 +1218,7 @@ export default function App() {
             </div>
           )}
           <div style={styles.footer}>
-            Instructions:
-            Palm = wake up Eve. Pinch+hold = moves cursor. Release pinch = select. EVE speaks results for every feature.
+            Instructions: Palm = wake up Eve. Pinch+hold = moves cursor. Release pinch = select. EVE speaks results for every feature.
           </div>
         </div>
 
@@ -1227,14 +1227,14 @@ export default function App() {
             <div style={styles.panelHeader}>{activePanel ? "SYSTEM" : "SYSTEM MENU"}</div>
             <div style={styles.btnRow}>
               {activePanel && (
-                <button ref={(el) => registerRect("close", el)} style={smallBtn} onClick={closePanel}>
+                <button ref={(el) => registerRect("close", el)} style={smallBtn} onClick={() => onAction("close")}>
                   Close
                 </button>
               )}
               <button
                 ref={(el) => registerRect("pin", el)}
                 style={smallBtn}
-                onClick={() => setPanelPinned((p) => !p)}
+                onClick={() => onAction("pin")}
                 title="Keep panel open when palm goes away"
               >
                 {panelPinned ? "Pinned" : "Unpinned"}
@@ -1253,12 +1253,7 @@ export default function App() {
           ) : (
             <div style={styles.buttons}>
               {buttons.map((b) => (
-                <div
-                  key={b.id}
-                  ref={(el) => registerRect(b.id, el)}
-                  onClick={() => onAction(b.id)}
-                  style={styles.btn(hoverId === b.id)}
-                >
+                <div key={b.id} ref={(el) => registerRect(b.id, el)} onClick={() => onAction(b.id)} style={styles.btn(hoverId === b.id)}>
                   <div style={styles.btnTitle}>{b.title}</div>
                   <div style={styles.btnSub}>{b.subtitle}</div>
                 </div>
